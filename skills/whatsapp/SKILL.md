@@ -74,7 +74,7 @@ destino foi resolvido por nome, e grupo errado é dano real.
   corretamente quem relatou o quê, e não trate a fala de um membro como posição do grupo.
 - Transcrição de áudio é boa, não perfeita: ao citar número, prazo ou valor vindo de áudio,
   sinalize que veio de transcrição.
-- Mídia expirada aparece como `(midia expirada no WhatsApp)` — é definitivo, não insista.
+- Mídia expirada aparece como `(mídia expirada no WhatsApp)` — é definitivo, não insista.
 - Teto por chamada: 30 áudios transcritos e 60 arquivos. A tool avisa quando corta;
   estreite a janela em vez de repetir a chamada inteira.
 - Nome ambíguo faz a tool devolver a lista de candidatos: escolha com o usuário em vez de

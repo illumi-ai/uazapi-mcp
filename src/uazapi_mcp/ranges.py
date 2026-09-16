@@ -1,10 +1,14 @@
 """Interpreta janelas de tempo em linguagem natural para timestamps em ms.
 
-A uazapi nao filtra por data no servidor (testado: messageTimestamp/dateStart/dateEnd
-sao ignorados por /message/find), entao o recorte e feito no cliente e este modulo
+A uazapi não filtra por data no servidor (testado: messageTimestamp/dateStart/dateEnd
+são ignorados por /message/find), então o recorte é feito no cliente e este módulo
 define as bordas da janela.
+
+As palavras-chave ficam sem acento de propósito: a entrada passa por `normalizar`, então
+"mês", "Mes" e "mes" são a mesma coisa.
 """
 import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 TZ = timezone(timedelta(hours=-3))  # America/Sao_Paulo
@@ -30,20 +34,26 @@ def fmt_dia(ts_ms: int) -> str:
     return datetime.fromtimestamp(ts_ms / 1000, TZ).strftime("%d/%m/%Y")
 
 
+def normalizar(texto: str) -> str:
+    """Minúsculas, sem acentos, sem espaços nas pontas: 'Mês' -> 'mes', 'Áudio' -> 'audio'."""
+    s = unicodedata.normalize("NFKD", str(texto))
+    return "".join(ch for ch in s if not unicodedata.combining(ch)).strip().lower()
+
+
 _RELATIVO = re.compile(r"^(\d+)\s*(m|min|minutos?|h|horas?|d|dias?|s|semanas?|meses?)$", re.I)
 _DATA = re.compile(r"^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?:\s+(\d{1,2}):(\d{2}))?$")
 _ISO = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$")
 
 
 def parse_momento(texto: str, fim_do_dia: bool = False) -> int | None:
-    """Converte uma expressao de tempo em timestamp (ms). None = sem limite.
+    """Converte uma expressão de tempo em timestamp (ms). None = sem limite.
 
     Aceita: hoje, ontem, anteontem, agora, "3d", "2h", "30min", "1 semana",
     "10/09", "10/09/2026", "10/09 14:30", "2026-09-10", "2026-09-10 14:30".
     """
     if texto is None:
         return None
-    t = str(texto).strip().lower()
+    t = normalizar(texto)
     if not t or t in ("sempre", "tudo", "todos", "all", "none"):
         return None
 
@@ -94,13 +104,13 @@ def parse_momento(texto: str, fim_do_dia: bool = False) -> int | None:
         return _ms(datetime(ano, mes, dia, hh, mm, tzinfo=TZ))
 
     raise ValueError(
-        f"Nao entendi a data {texto!r}. Use: hoje, ontem, '3d', '2h', '10/09', "
+        f"Não entendi a data {texto!r}. Use: hoje, ontem, '3d', '2h', '10/09', "
         "'10/09 14:30', '2026-09-10' ou deixe vazio."
     )
 
 
 def janela(since: str | None, until: str | None) -> tuple[int | None, int | None]:
-    """Resolve o par (inicio, fim) em ms. Aceita 'since' no formato '10/09..12/09'."""
+    """Resolve o par (início, fim) em ms. Aceita 'since' no formato '10/09..12/09'."""
     if since and ".." in str(since):
         a, b = str(since).split("..", 1)
         return parse_momento(a.strip()), parse_momento(b.strip(), fim_do_dia=True)

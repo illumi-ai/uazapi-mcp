@@ -18,3 +18,13 @@ jobs:
           enable-cache: true
       - name: Rodar os testes
         run: uv run --group dev --python ${{ matrix.python-version }} pytest -q
+
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Lint
+        run: uv run --group dev ruff check src tests

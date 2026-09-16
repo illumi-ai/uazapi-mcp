@@ -5,6 +5,7 @@
 **Seu WhatsApp dentro do Claude Code — com os áudios já transcritos.**
 
 [![tests](https://github.com/illumi-ai/uazapi-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/illumi-ai/uazapi-mcp/actions/workflows/tests.yml)
+[![release](https://img.shields.io/github/v/release/illumi-ai/uazapi-mcp?label=release&color=2ea44f)](https://github.com/illumi-ai/uazapi-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io)
@@ -27,10 +28,10 @@ Com este MCP, é uma pergunta:
 ```
 > o que o cliente falou no grupo Suporte hoje?
 
-[09:12] Marcos: [audio] transcricao: "Bom dia, o sistema travou na hora de emitir a
+[09:12] Marcos: [áudio] transcrição: "Bom dia, o sistema travou na hora de emitir a
   nota, aparece um erro de conexão e não deixa salvar o pedido. Já tentei três vezes..."
-[09:14] Marcos: [imagem] arquivo: ~/.uazapi-mcp/media/suporte/1789-print.jpg
-[09:15] NOS: Já estamos olhando, Marcos.
+[09:14] Marcos: [imagem] arquivo: ~/.uazapi-mcp/media/comercial/suporte/1757930040000-image.jpg
+[09:15] NÓS: Já estamos olhando, Marcos.
 ```
 
 O áudio volta como texto. A imagem volta como arquivo local, pronto para o agente abrir.
@@ -48,8 +49,8 @@ O áudio volta como texto. A imagem volta como arquivo local, pronto para o agen
 
 ## Instalação
 
-Precisa de [uv](https://docs.astral.sh/uv/) e Python 3.11+. **Não precisa clonar** — o `uvx`
-baixa e roda direto do repositório:
+Precisa de [uv](https://docs.astral.sh/uv/), `git` e Python 3.11+. **Não precisa clonar** — o
+`uvx` baixa e roda direto do repositório:
 
 ```bash
 claude mcp add uazapi \
@@ -58,6 +59,10 @@ claude mcp add uazapi \
   --env ELEVENLABS_API_KEY=sua_chave_elevenlabs \
   -- uvx --from git+https://github.com/illumi-ai/uazapi-mcp uazapi-mcp
 ```
+
+Para fixar uma versão, troque a origem por `git+https://github.com/illumi-ai/uazapi-mcp@v0.1.0`.
+As versões estão em [Releases](https://github.com/illumi-ai/uazapi-mcp/releases), cada uma com
+wheel e sdist anexados.
 
 Reinicie a sessão e peça ao agente para rodar `check_config` — ele confirma a conexão e
 lista as instâncias conectadas, sem revelar segredos.
@@ -95,7 +100,7 @@ O repositório traz três skills que ensinam ao agente os fluxos completos:
 
 ```bash
 git clone https://github.com/illumi-ai/uazapi-mcp
-cp -r uazapi-mcp/skills/* ~/.claude/skills/
+cp -r uazapi-mcp/skills/whatsapp uazapi-mcp/skills/entender-problema uazapi-mcp/skills/resumo-do-dia ~/.claude/skills/
 ```
 
 Detalhes e como adaptar ao seu fluxo em [`skills/README.md`](skills/README.md).
@@ -114,9 +119,11 @@ Detalhes e como adaptar ao seu fluxo em [`skills/README.md`](skills/README.md).
 
 ¹ Um dos dois. Ambos os tokens saem do painel da uazapi.
 
-As variáveis também podem ficar num `.env` — no diretório de trabalho, em
-`~/.uazapi-mcp/.env` ou em `~/.claude/.env`, nessa ordem e sempre atrás das variáveis já
-exportadas. Copie de [`.env.example`](.env.example).
+As variáveis também podem ficar num `.env` em `~/.uazapi-mcp/.env` ou em `~/.claude/.env`,
+nessa ordem e sempre atrás das variáveis já exportadas. Copie de
+[`.env.example`](.env.example). O `.env` do diretório de trabalho **não** é lido: o cliente
+MCP inicia o servidor dentro do projeto aberto, e um `.env` de terceiros não pode apontar
+`UAZAPI_SERVER` — e o token junto — para outro lugar.
 
 ## Tools
 
@@ -195,23 +202,28 @@ As tools de envio existem, mas este projeto não implementa disparo em massa —
 uazapi tem `/sender/*` para isso, e é justamente o tipo de ferramenta que não deve ficar a
 uma chamada de distância de um agente autônomo.
 
+Encontrou uma vulnerabilidade? Veja [SECURITY.md](SECURITY.md) — reporte em privado, não
+em issue pública.
+
 ## Desenvolvimento
 
 ```bash
 git clone https://github.com/illumi-ai/uazapi-mcp && cd uazapi-mcp
 cp .env.example .env    # preencha
 uv sync
-uv run --group dev pytest    # 31 testes, sem rede
-uv run uazapi-mcp            # servidor em stdio
+uv run --group dev pytest              # testes, sem rede
+uv run --group dev ruff check src tests
+uv run --env-file .env uazapi-mcp      # servidor em stdio
 ```
 
 Apontar o Claude Code para o clone local:
 
 ```bash
-claude mcp add uazapi -- uv run --directory /caminho/para/uazapi-mcp uazapi-mcp
+claude mcp add uazapi -- uv run --env-file /caminho/para/uazapi-mcp/.env --directory /caminho/para/uazapi-mcp uazapi-mcp
 ```
 
-Contribuições: [CONTRIBUTING.md](CONTRIBUTING.md) · Histórico: [CHANGELOG.md](CHANGELOG.md)
+Contribuições e processo de release: [CONTRIBUTING.md](CONTRIBUTING.md) · Histórico:
+[CHANGELOG.md](CHANGELOG.md) · Instruções para agentes: [CLAUDE.md](CLAUDE.md)
 
 ## Licença
 

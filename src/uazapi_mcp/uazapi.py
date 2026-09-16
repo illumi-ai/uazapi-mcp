@@ -1,13 +1,14 @@
 """Cliente da API uazapi.
 
-Autenticacao por header: `token` (instancia) ou `admintoken` (servidor).
-O admintoken so e usado para listar instancias e resolver o token de uma instancia
-pelo nome; toda leitura e envio usa o token da instancia.
+Autenticacao por header: `token` (instância) ou `admintoken` (servidor).
+O admintoken só e usado para listar instâncias e resolver o token de uma instância
+pelo nome; toda leitura e envio usa o token da instância.
 """
 from __future__ import annotations
 
 import asyncio
 import ssl
+import time
 from typing import Any
 
 import certifi
@@ -17,6 +18,8 @@ from . import config
 
 _CTX = ssl.create_default_context(cafile=certifi.where())
 _cache_instancias: list[dict[str, Any]] = []
+_cache_instancias_em = 0.0
+CACHE_INSTANCIAS_SEG = 120
 
 
 class UazapiError(RuntimeError):
@@ -29,11 +32,11 @@ async def _request(method: str, path: str, body: dict | None = None, *,
     headers = {"Content-Type": "application/json"}
     if admin:
         if not config.ADMIN_TOKEN:
-            raise UazapiError("UAZAPI_ADMIN_TOKEN nao configurado no .env do projeto.")
+            raise UazapiError("UAZAPI_ADMIN_TOKEN não configurado (variável de ambiente ou ~/.uazapi-mcp/.env).")
         headers["admintoken"] = config.ADMIN_TOKEN
     else:
         if not token:
-            raise UazapiError("Token da instancia ausente: informe `instance` na chamada.")
+            raise UazapiError("Token da instância ausente: informe `instance` na chamada.")
         headers["token"] = token
 
     config.checar_servidor()
@@ -44,7 +47,7 @@ async def _request(method: str, path: str, body: dict | None = None, *,
             async with httpx.AsyncClient(verify=_CTX, timeout=timeout) as cli:
                 r = await cli.request(method, url, json=body, headers=headers)
             if 400 <= r.status_code < 500:
-                # Erro de uso (payload, token, ancora ausente): repetir nao ajuda.
+                # Erro de uso (payload, token, âncora ausente): repetir não ajuda.
                 raise UazapiError(f"HTTP {r.status_code} em {path}: {r.text[:300]}")
             r.raise_for_status()
             return r.json() if r.content else {}
@@ -55,7 +58,7 @@ async def _request(method: str, path: str, body: dict | None = None, *,
             if tentativa == tentativas - 1:
                 break
             await asyncio.sleep(2 * (tentativa + 1))
-    raise UazapiError(f"Falha em {path} apos {tentativas} tentativas: {ultimo}")
+    raise UazapiError(f"Falha em {path} após {tentativas} tentativas: {ultimo}")
 
 
 async def post(path: str, body: dict, token: str) -> Any:
@@ -66,31 +69,32 @@ async def get(path: str, token: str) -> Any:
     return await _request("GET", path, token=token)
 
 
-# ---------------------------------------------------------------- instancias
+# ---------------------------------------------------------------- instâncias
 
 async def listar_instancias(forcar: bool = False) -> list[dict[str, Any]]:
-    """Lista as instancias do servidor. Exige admintoken."""
-    global _cache_instancias
-    if _cache_instancias and not forcar:
+    """Lista as instâncias do servidor. Exige admintoken."""
+    global _cache_instancias, _cache_instancias_em
+    if _cache_instancias and not forcar and time.monotonic() - _cache_instancias_em < CACHE_INSTANCIAS_SEG:
         return _cache_instancias
     if not config.ADMIN_TOKEN:
         if config.INSTANCE_TOKEN:
-            # Conta sem admintoken: da para operar com o token de uma unica instancia.
+            # Conta sem admintoken: dá para operar com o token de uma única instância.
             return [{"name": "(UAZAPI_TOKEN)", "token": config.INSTANCE_TOKEN,
                      "status": "connected", "owner": "", "profileName": ""}]
         raise UazapiError(
             "Defina UAZAPI_ADMIN_TOKEN (token de administrador do servidor) para listar "
-            "instancias, ou UAZAPI_TOKEN para operar com uma instancia unica.")
+            "instâncias, ou UAZAPI_TOKEN para operar com uma instância única.")
     d = await _request("GET", "/instance/all", admin=True)
     _cache_instancias = d if isinstance(d, list) else (d.get("instances") or d.get("data") or [])
+    _cache_instancias_em = time.monotonic()
     return _cache_instancias
 
 
 async def resolver_instancia(instancia: str | None) -> tuple[str, str]:
-    """Aceita nome, numero (owner) ou o proprio token. Devolve (nome, token).
+    """Aceita nome, número (owner) ou o próprio token. Devolve (nome, token).
 
-    Sem argumento, usa UAZAPI_DEFAULT_INSTANCE; se tambem vazio e houver exatamente
-    uma instancia conectada, usa essa; senao exige escolha explicita.
+    Sem argumento, usa UAZAPI_DEFAULT_INSTANCE; se também vazio e houver exatamente
+    uma instância conectada, usa essa; senão exige escolha explicita.
     """
     alvo = (instancia or config.DEFAULT_INSTANCE or "").strip()
     if not alvo and config.INSTANCE_TOKEN and not config.ADMIN_TOKEN:
@@ -109,32 +113,32 @@ async def resolver_instancia(instancia: str | None) -> tuple[str, str]:
                               or alvo_l in (i.get("profileName") or "").lower()
                               or alvo.lstrip("+") in (i.get("owner") or "")]
         if not parciais:
-            # Pode ser um token de instancia que o admin nao lista; tenta direto.
+            # Pode ser um token de instância que o admin não lista; tenta direto.
             if len(alvo) > 20:
                 return "(token informado)", alvo
             conectadas = [i.get("name") for i in insts if i.get("status") == "connected"]
             raise UazapiError(
-                f"Instancia {alvo!r} nao encontrada. Conectadas agora: {', '.join(conectadas) or 'nenhuma'}."
+                f"Instância {alvo!r} não encontrada. Conectadas agora: {', '.join(conectadas) or 'nenhuma'}."
             )
         if len(parciais) > 1 and not exatas:
             nomes = ", ".join(f"{i.get('name')} ({i.get('status')})" for i in parciais[:8])
-            raise UazapiError(f"{alvo!r} casa com varias instancias: {nomes}. Seja mais especifico.")
+            raise UazapiError(f"{alvo!r} casa com várias instâncias: {nomes}. Seja mais específico.")
         escolhida = parciais[0]
         return escolhida.get("name") or "?", escolhida.get("token") or ""
 
     conectadas = [i for i in insts if i.get("status") == "connected"]
     if len(conectadas) == 1:
         return conectadas[0].get("name") or "?", conectadas[0].get("token") or ""
-    nomes = ", ".join(f"{i.get('name')!r} ({i.get('owner') or 'sem numero'})" for i in conectadas)
+    nomes = ", ".join(f"{i.get('name')!r} ({i.get('owner') or 'sem número'})" for i in conectadas)
     raise UazapiError(
-        "Informe `instance`: ha varias instancias conectadas -> " + (nomes or "nenhuma conectada.")
+        "Informe `instance`: há várias instâncias conectadas -> " + (nomes or "nenhuma conectada.")
     )
 
 
 # ---------------------------------------------------------------------- chats
 
 def jid_de(numero: str) -> str:
-    """Normaliza numero/JID. Grupos terminam em @g.us, individuais em @s.whatsapp.net."""
+    """Normaliza número/JID. Grupos terminam em @g.us, individuais em @s.whatsapp.net."""
     n = str(numero).strip()
     if "@" in n:
         return n
@@ -165,7 +169,7 @@ async def buscar_chats(token: str, *, busca: str | None = None, tipo: str = "all
 
 
 async def resolver_chat(token: str, chat: str) -> dict:
-    """Aceita JID, numero ou nome. Devolve o dict do chat (com wa_chatid)."""
+    """Aceita JID, número ou nome. Devolve o dict do chat (com wa_chatid)."""
     alvo = str(chat).strip()
     if "@" in alvo or alvo.replace("+", "").replace(" ", "").replace("-", "").isdigit():
         jid = jid_de(alvo)
@@ -185,7 +189,7 @@ async def resolver_chat(token: str, chat: str) -> dict:
         opcoes = "\n".join(
             f"  - {nome_do_chat(c)} ({'grupo' if c.get('wa_isGroup') else c.get('wa_chatid','').split('@')[0]})"
             for c in achados[:10])
-        raise UazapiError(f"{alvo!r} casa com varios chats. Escolha um e repita com o nome exato ou o numero:\n{opcoes}")
+        raise UazapiError(f"{alvo!r} casa com vários chats. Escolha um e repita com o nome exato ou o número:\n{opcoes}")
     return achados[0]
 
 

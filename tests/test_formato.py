@@ -15,23 +15,23 @@ def test_linha_de_texto_traz_autor_e_horario():
 
 
 def test_nossa_mensagem_aparece_como_nos():
-    assert "] NOS:" in formato.linha(_msg(fromMe=True), grupo=False)
+    assert "] NÓS:" in formato.linha(_msg(fromMe=True), grupo=False)
 
 
 def test_em_grupo_nossa_mensagem_identifica_quem_escreveu():
     linha = formato.linha(_msg(fromMe=True, senderName="Ana"), grupo=True)
-    assert "NOS (Ana)" in linha
+    assert "NÓS (Ana)" in linha
 
 
 def test_audio_mostra_transcricao():
     m = _msg(messageType="AudioMessage", text="")
-    linha = formato.linha(m, grupo=False, midias={"A1": {"transcricao": "bom dia", "file": "/tmp/a.mp3"}})
-    assert "[audio]" in linha and "bom dia" in linha and "/tmp/a.mp3" in linha
+    linha = formato.linha(m, grupo=False, midias={"A1": {"transcricao": "bom dia", "file": "~/.uazapi-mcp/media/x/a.mp3"}})
+    assert "[áudio]" in linha and "bom dia" in linha and "media/x/a.mp3" in linha
 
 
 def test_midia_expirada_e_sinalizada():
     m = _msg(messageType="ImageMessage", text="")
-    linha = formato.linha(m, grupo=False, midias={"A1": {"erro": "midia expirada no WhatsApp"}})
+    linha = formato.linha(m, grupo=False, midias={"A1": {"erro": "mídia expirada no WhatsApp"}})
     assert "expirada" in linha
 
 

@@ -1,28 +1,29 @@
 """MCP server: WhatsApp via uazapi.
 
-Leitura (chats, mensagens, midias com audio ja transcrito) e envio com confirmacao
-em duas etapas. Multi-instancia: cada chamada escolhe a instancia, ou usa
+Leitura (chats, mensagens, mídias com áudio já transcrito) e envio com confirmação
+em duas etapas. Multi-instância: cada chamada escolhe a instância, ou usa
 UAZAPI_DEFAULT_INSTANCE quando definida.
 """
 from __future__ import annotations
 
-import asyncio
 import base64
+import logging
 from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from . import config, formato, uazapi
+from . import __version__, config, formato, uazapi
 from .midia import TIPOS_AUDIO, TIPOS_MIDIA, pasta_do_chat, processar_lote, transcrever
-from .ranges import fmt, janela
+from .ranges import fmt, janela, normalizar
 
 mcp = MCPServer(
     "uazapi",
+    version=__version__,
     instructions=(
-        "Le e envia mensagens de WhatsApp via uazapi. Audios voltam transcritos e midias "
+        "Lê e envia mensagens de WhatsApp via uazapi. Áudios voltam transcritos e mídias "
         "viram arquivos locais. Envio exige duas etapas: chame com confirmar=False, mostre a "
-        "previa ao usuario e so repita com confirmar=True apos o aval dele."
+        "prévia ao usuário e só repita com confirmar=True após o aval dele."
     ),
 )
 
@@ -39,9 +40,9 @@ async def _ctx(instancia: str | None, chat: str) -> tuple[str, str, dict]:
 
 async def _coletar(token: str, chatid: str, *, inicio: int | None, fim: int | None,
                    limite: int, from_me: bool | None = None, tipo: str | None = None) -> list[dict]:
-    """Pagina /message/find do mais recente para tras ate cobrir a janela.
+    """Pagina /message/find do mais recente para trás até cobrir a janela.
 
-    A uazapi nao filtra por data (testado), entao o recorte e feito aqui.
+    A uazapi não filtra por data (testado), então o recorte é feito aqui.
     """
     coletadas: list[dict] = []
     offset = 0
@@ -73,37 +74,37 @@ async def _coletar(token: str, chatid: str, *, inicio: int | None, fim: int | No
 
 @mcp.tool()
 async def check_config() -> str:
-    """Mostra o estado da configuracao e testa a conexao com o servidor uazapi.
+    """Mostra o estado da configuração e testa a conexão com o servidor uazapi.
 
     Use quando as outras tools falharem: diz o que falta configurar sem revelar segredos.
     """
-    L = ["# Configuracao do uazapi-mcp", ""]
+    L = ["# Configuração do uazapi-mcp", ""]
     for k, v in config.diagnostico().items():
         L.append(f"- **{k}**: {v}")
     L.append("")
     if not config.SERVER:
-        L.append("UAZAPI_SERVER nao definido — nenhuma chamada vai funcionar. "
-                 "Configure as variaveis no cliente MCP (veja o README).")
+        L.append("UAZAPI_SERVER não definido — nenhuma chamada vai funcionar. "
+                 "Configure as variáveis no cliente MCP (veja o README).")
         return "\n".join(L)
     try:
         insts = await uazapi.listar_instancias(forcar=True)
         conectadas = [i for i in insts if i.get("status") == "connected"]
-        L.append(f"Conexao OK: {len(insts)} instancias no servidor, {len(conectadas)} conectadas.")
+        L.append(f"Conexão OK: {len(insts)} instâncias no servidor, {len(conectadas)} conectadas.")
         if conectadas:
             L.append("Conectadas: " + ", ".join(str(i.get("name")) for i in conectadas))
         else:
-            L.append("Nenhuma instancia conectada: conecte uma no painel uazapi antes de ler mensagens.")
+            L.append("Nenhuma instância conectada: conecte uma no painel uazapi antes de ler mensagens.")
     except Exception as e:
         L.append(f"Falha ao falar com {config.SERVER}: {e}")
     if not config.ELEVENLABS_API_KEY:
         L.append("")
-        L.append("ELEVENLABS_API_KEY ausente: audios serao baixados, mas nao transcritos.")
+        L.append("ELEVENLABS_API_KEY ausente: áudios serão baixados, mas não transcritos.")
     return "\n".join(L)
 
 
 @mcp.tool()
 async def list_instances(apenas_conectadas: bool = True) -> str:
-    """Lista as instancias (numeros de WhatsApp) disponiveis no servidor uazapi.
+    """Lista as instâncias (números de WhatsApp) disponiveis no servidor uazapi.
 
     Use para descobrir qual valor passar em `instance` nas outras tools.
     """
@@ -114,8 +115,8 @@ async def list_instances(apenas_conectadas: bool = True) -> str:
     if apenas_conectadas:
         insts = [i for i in insts if i.get("status") == "connected"]
     if not insts:
-        return "Nenhuma instancia conectada. Conecte uma no painel uazapi ou use apenas_conectadas=False."
-    L = ["| Instancia | Numero | Perfil | Status |", "|---|---|---|---|"]
+        return "Nenhuma instância conectada. Conecte uma no painel uazapi ou use apenas_conectadas=False."
+    L = ["| Instância | Numero | Perfil | Status |", "|---|---|---|---|"]
     for i in insts:
         L.append(f"| {i.get('name')} | {i.get('owner') or '-'} | {i.get('profileName') or '-'} | {i.get('status')} |")
     return "\n".join(L)
@@ -127,8 +128,8 @@ async def list_chats(busca: str = "", tipo: str = "all", limite: int = 30,
     """Lista conversas ordenadas pela mais recente.
 
     busca: parte do nome do contato/grupo (deixe vazio para as mais recentes).
-    tipo: 'all', 'group' (so grupos) ou 'dm' (so individuais).
-    instance: nome ou numero da instancia; vazio usa a padrao.
+    tipo: 'all', 'group' (só grupos) ou 'dm' (só individuais).
+    instance: nome ou número da instância; vazio usa a padrão.
     """
     try:
         _, token = await uazapi.resolver_instancia(instance)
@@ -140,7 +141,7 @@ async def list_chats(busca: str = "", tipo: str = "all", limite: int = 30,
 
 @mcp.tool()
 async def list_groups(busca: str = "", limite: int = 50, instance: str = "") -> str:
-    """Lista os grupos de que o numero participa, com o identificador de cada um."""
+    """Lista os grupos de que o número participa, com o identificador de cada um."""
     try:
         _, token = await uazapi.resolver_instancia(instance)
         d = await uazapi.post("/group/list",
@@ -164,13 +165,13 @@ async def get_messages(chat: str, since: str = "", until: str = "", limite: int 
                        transcrever_audios: bool = True, baixar_midias: bool = True,
                        apenas_nossas: bool = False, tipo_mensagem: str = "",
                        instance: str = "") -> str:
-    """Le as mensagens de uma conversa em uma janela de tempo, ja com os audios transcritos.
+    """Lê as mensagens de uma conversa em uma janela de tempo, já com os áudios transcritos.
 
-    chat: nome do contato/grupo, numero (5562...) ou identificador completo.
+    chat: nome do contato/grupo, número (5562...) ou identificador completo.
     since/until: 'hoje', 'ontem', '3d', '2h', '10/09', '10/09 14:30', '2026-09-10'.
                  Tambem aceita intervalo em since: '10/09..12/09'. Vazio = mais recentes.
-    transcrever_audios: audios voltam como texto (ElevenLabs Scribe v2).
-    baixar_midias: imagens/videos/documentos sao gravados em disco e o caminho vem no
+    transcrever_audios: áudios voltam como texto (ElevenLabs Scribe v2).
+    baixar_midias: imagens/vídeos/documentos são gravados em disco e o caminho vem no
                    transcript, pronto para o Read.
     tipo_mensagem: filtra por tipo, ex 'AudioMessage', 'ImageMessage', 'DocumentMessage'.
     """
@@ -191,19 +192,19 @@ async def get_messages(chat: str, since: str = "", until: str = "", limite: int 
                 alvo = [m for m in alvo if m.get("messageType") not in TIPOS_AUDIO]
             audios = [m for m in alvo if m.get("messageType") in TIPOS_AUDIO]
             if len(audios) > config.MAX_TRANSCRICOES:
-                avisos.append(f"{len(audios)} audios no periodo; transcrevi os {config.MAX_TRANSCRICOES} mais recentes.")
-                manter = {m["messageid"] for m in audios[-config.MAX_TRANSCRICOES:]}
-                alvo = [m for m in alvo if m.get("messageType") not in TIPOS_AUDIO or m["messageid"] in manter]
+                avisos.append(f"{len(audios)} áudios no período; transcrevi os {config.MAX_TRANSCRICOES} mais recentes.")
+                manter = {m.get("messageid") for m in audios[-config.MAX_TRANSCRICOES:]}
+                alvo = [m for m in alvo if m.get("messageType") not in TIPOS_AUDIO or m.get("messageid") in manter]
             if len(alvo) > config.MAX_DOWNLOADS:
-                avisos.append(f"{len(alvo)} midias no periodo; baixei as {config.MAX_DOWNLOADS} mais recentes.")
+                avisos.append(f"{len(alvo)} mídias no período; baixei as {config.MAX_DOWNLOADS} mais recentes.")
                 alvo = alvo[-config.MAX_DOWNLOADS:]
             if alvo:
                 destino = pasta_do_chat(nome_inst, uazapi.nome_do_chat(c))
                 midias = await processar_lote(token, alvo, destino,
                                               transcrever_audio=transcrever_audios)
-        cab = f"Instancia: {nome_inst}"
+        cab = f"Instância: {nome_inst}"
         if inicio or fim:
-            cab += f" · Janela: {fmt(inicio) if inicio else 'inicio'} -> {fmt(fim) if fim else 'agora'}"
+            cab += f" · Janela: {fmt(inicio) if inicio else 'início'} -> {fmt(fim) if fim else 'agora'}"
         if avisos:
             cab += "\n" + "\n".join(f"AVISO: {a}" for a in avisos)
         return formato.transcript(c, msgs, midias=midias, cabecalho=cab)
@@ -215,10 +216,10 @@ async def get_messages(chat: str, since: str = "", until: str = "", limite: int 
 async def get_media(chat: str, since: str = "", until: str = "", tipos: str = "all",
                     transcrever_audios: bool = True, limite: int = 40,
                     instance: str = "") -> str:
-    """Baixa as midias de uma conversa para disco e devolve os caminhos locais.
+    """Baixa as mídias de uma conversa para disco e devolve os caminhos locais.
 
     tipos: 'all', 'audio', 'imagem', 'video' ou 'documento'.
-    Audios voltam tambem com a transcricao. Use quando precisar dos arquivos em si;
+    Áudios voltam também com a transcrição. Use quando precisar dos arquivos em si;
     para ler a conversa inteira prefira get_messages.
     """
     grupos_tipo = {
@@ -228,9 +229,9 @@ async def get_media(chat: str, since: str = "", until: str = "", tipos: str = "a
         "documento": {"DocumentMessage"},
         "all": TIPOS_MIDIA,
     }
-    alvo_tipos = grupos_tipo.get(tipos.lower())
+    alvo_tipos = grupos_tipo.get(normalizar(tipos))
     if alvo_tipos is None:
-        return f"ERRO: tipos invalido ({tipos}). Use: all, audio, imagem, video ou documento."
+        return f"ERRO: tipos inválido ({tipos}). Use: all, audio, imagem, video ou documento."
     try:
         inicio, fim = janela(since or None, until or None)
         nome_inst, token, c = await _ctx(instance, chat)
@@ -238,10 +239,10 @@ async def get_media(chat: str, since: str = "", until: str = "", tipos: str = "a
                               limite=config.MAX_MENSAGENS)
         alvo = [m for m in msgs if m.get("messageType") in alvo_tipos][-min(limite, config.MAX_DOWNLOADS):]
         if not alvo:
-            return f"Nenhuma midia do tipo {tipos} nesse periodo em {uazapi.nome_do_chat(c)}."
+            return f"Nenhuma mídia do tipo {tipos} nesse período em {uazapi.nome_do_chat(c)}."
         destino = pasta_do_chat(nome_inst, uazapi.nome_do_chat(c))
         res = await processar_lote(token, alvo, destino, transcrever_audio=transcrever_audios)
-        L = [f"# Midias de {uazapi.nome_do_chat(c)} ({len(alvo)} arquivos)", "",
+        L = [f"# Mídias de {uazapi.nome_do_chat(c)} ({len(alvo)} arquivos)", "",
              f"Pasta: {destino}", ""]
         for m in alvo:
             info = res.get(m.get("messageid"), {})
@@ -250,7 +251,7 @@ async def get_media(chat: str, since: str = "", until: str = "", tipos: str = "a
             if info.get("file"):
                 L.append(f"  arquivo: {info['file']}")
             if info.get("transcricao"):
-                L.append(f'  transcricao: "{info["transcricao"]}"')
+                L.append(f'  transcrição: "{info["transcricao"]}"')
             if info.get("erro"):
                 L.append(f"  {info['erro']}")
         return "\n".join(L)
@@ -261,9 +262,9 @@ async def get_media(chat: str, since: str = "", until: str = "", tipos: str = "a
 @mcp.tool()
 async def search_messages(termo: str, chat: str = "", since: str = "7d", limite_chats: int = 15,
                           instance: str = "") -> str:
-    """Procura um termo nas mensagens recentes (a uazapi nao busca texto no servidor).
+    """Procura um termo nas mensagens recentes (a uazapi não busca texto no servidor).
 
-    chat vazio = varre os chats mais recentes; com chat, busca so nele.
+    chat vazio = varre os chats mais recentes; com chat, busca só nele.
     """
     try:
         nome_inst, token = await uazapi.resolver_instancia(instance)
@@ -279,7 +280,7 @@ async def search_messages(termo: str, chat: str = "", since: str = "7d", limite_
                 if termo_l in formato.texto_da_msg(m).lower():
                     achados.append(f"- **{uazapi.nome_do_chat(c)}** · {formato.linha(m, grupo)}")
         if not achados:
-            return f"Nada com {termo!r} nos ultimos chats desde {since}."
+            return f"Nada com {termo!r} nos últimos chats desde {since}."
         return f"# {len(achados)} mensagens com {termo!r}\n\n" + "\n".join(achados[:100])
     except Exception as e:
         return _erro(e)
@@ -287,7 +288,7 @@ async def search_messages(termo: str, chat: str = "", since: str = "7d", limite_
 
 @mcp.tool()
 async def get_chat_info(chat: str, instance: str = "") -> str:
-    """Detalhes de um contato ou grupo: identificador, nome, se e grupo, ultima mensagem."""
+    """Detalhes de um contato ou grupo: identificador, nome, se é grupo, última mensagem."""
     try:
         nome_inst, token, c = await _ctx(instance, chat)
         d = await uazapi.post("/chat/details", {"number": c["wa_chatid"], "preview": True}, token)
@@ -295,7 +296,7 @@ async def get_chat_info(chat: str, instance: str = "") -> str:
         campos = ["wa_chatid", "wa_contactName", "name", "wa_isGroup", "wa_isGroup_admin",
                   "wa_lastMsgTimestamp", "wa_label", "lead_status", "lead_tags",
                   "wa_isBlocked", "wa_archived", "imagePreview", "phone"]
-        L = [f"# {uazapi.nome_do_chat(c)}", "", f"Instancia: {nome_inst}", ""]
+        L = [f"# {uazapi.nome_do_chat(c)}", "", f"Instância: {nome_inst}", ""]
         for k in campos:
             v = alvo.get(k, c.get(k))
             if v in (None, "", [], {}):
@@ -310,9 +311,9 @@ async def get_chat_info(chat: str, instance: str = "") -> str:
 
 @mcp.tool()
 async def sync_history(chat: str, quantidade: int = 100, instance: str = "") -> str:
-    """Pede ao celular o historico antigo de uma conversa (assincrono).
+    """Pede ao celular o histórico antigo de uma conversa (assincrono).
 
-    Use so quando get_messages nao alcanca o periodo pedido: a uazapi guarda uma
+    Use só quando get_messages não alcança o período pedido: a uazapi guarda uma
     janela curta. Exige o celular online. As mensagens aparecem no get_messages
     depois de alguns segundos/minutos.
     """
@@ -322,8 +323,8 @@ async def sync_history(chat: str, quantidade: int = 100, instance: str = "") -> 
                               {"number": c["wa_chatid"], "mode": "history",
                                "count": min(quantidade, 100)}, token)
         return (f"Sync pedido para {uazapi.nome_do_chat(c)} ({nome_inst}): {r}\n"
-                "Aguarde ~1 min e rode get_messages de novo. Se voltar HTTP 400, o chat nao tem "
-                "mensagem ancora conhecida.")
+                "Aguarde ~1 min e rode get_messages de novo. Se voltar HTTP 400, o chat não tem "
+                "mensagem âncora conhecida.")
     except Exception as e:
         return _erro(e)
 
@@ -333,10 +334,10 @@ async def sync_history(chat: str, quantidade: int = 100, instance: str = "") -> 
 @mcp.tool()
 async def send_text(chat: str, texto: str, confirmar: bool = False, responder_id: str = "",
                     instance: str = "") -> str:
-    """Envia uma mensagem de texto. Exige confirmacao em duas etapas.
+    """Envia uma mensagem de texto. Exige confirmação em duas etapas.
 
-    Chame primeiro com confirmar=False: nada e enviado e volta um preview com o
-    destinatario resolvido. MOSTRE esse preview ao usuario e so chame de novo com
+    Chame primeiro com confirmar=False: nada é enviado e volta um preview com o
+    destinatario resolvido. MOSTRE esse preview ao usuário e só chame de novo com
     confirmar=True depois que ele aprovar.
     """
     try:
@@ -344,16 +345,16 @@ async def send_text(chat: str, texto: str, confirmar: bool = False, responder_id
         destino = uazapi.nome_do_chat(c)
         tipo = "GRUPO" if c.get("wa_isGroup") else "individual"
         if not confirmar:
-            return (f"PREVIA — nada foi enviado ainda.\n\n"
-                    f"- Instancia: {nome_inst}\n- Destino: {destino} ({tipo}) · `{c['wa_chatid']}`\n"
+            return (f"PRÉVIA — nada foi enviado ainda.\n\n"
+                    f"- Instância: {nome_inst}\n- Destino: {destino} ({tipo}) · `{c['wa_chatid']}`\n"
                     f"- Mensagem:\n\n{texto}\n\n"
-                    "Confirme com o usuario e repita a chamada com confirmar=True.")
+                    "Confirme com o usuário e repita a chamada com confirmar=True.")
         body: dict[str, Any] = {"number": c["wa_chatid"], "text": texto}
         if responder_id:
             body["replyid"] = responder_id
         r = await uazapi.post("/send/text", body, token)
         mid = r.get("messageid") or r.get("id") or ""
-        return f"Enviado para {destino} ({tipo}) pela instancia {nome_inst}. id={mid}"
+        return f"Enviado para {destino} ({tipo}) pela instância {nome_inst}. id={mid}"
     except Exception as e:
         return _erro(e)
 
@@ -361,9 +362,9 @@ async def send_text(chat: str, texto: str, confirmar: bool = False, responder_id
 @mcp.tool()
 async def send_media(chat: str, arquivo: str, tipo: str = "document", legenda: str = "",
                      confirmar: bool = False, instance: str = "") -> str:
-    """Envia um arquivo local ou URL. Exige confirmacao em duas etapas, como send_text.
+    """Envia um arquivo local ou URL. Exige confirmação em duas etapas, como send_text.
 
-    tipo: image, video, document, audio, ptt (audio de voz) ou sticker.
+    tipo: image, video, document, audio, ptt (áudio de voz) ou sticker.
     """
     try:
         nome_inst, token, c = await _ctx(instance, chat)
@@ -372,13 +373,13 @@ async def send_media(chat: str, arquivo: str, tipo: str = "document", legenda: s
         origem = arquivo.strip()
         local = Path(origem).expanduser()
         if not origem.lower().startswith(("http://", "https://")) and not local.is_file():
-            return f"ERRO: arquivo nao encontrado: {local}"
+            return f"ERRO: arquivo não encontrado: {local}"
         if not confirmar:
             tam = f"{local.stat().st_size/1024:.0f} KB" if local.is_file() else "URL remota"
-            return (f"PREVIA — nada foi enviado ainda.\n\n"
-                    f"- Instancia: {nome_inst}\n- Destino: {destino} ({ehgrupo}) · `{c['wa_chatid']}`\n"
+            return (f"PRÉVIA — nada foi enviado ainda.\n\n"
+                    f"- Instância: {nome_inst}\n- Destino: {destino} ({ehgrupo}) · `{c['wa_chatid']}`\n"
                     f"- Arquivo: {origem} ({tam}) como {tipo}\n- Legenda: {legenda or '(sem legenda)'}\n\n"
-                    "Confirme com o usuario e repita a chamada com confirmar=True.")
+                    "Confirme com o usuário e repita a chamada com confirmar=True.")
         if local.is_file():
             dados = base64.b64encode(local.read_bytes()).decode()
             conteudo = f"data:application/octet-stream;base64,{dados}"
@@ -390,14 +391,14 @@ async def send_media(chat: str, arquivo: str, tipo: str = "document", legenda: s
         if local.is_file() and tipo == "document":
             body["docName"] = local.name
         r = await uazapi.post("/send/media", body, token)
-        return f"Enviado para {destino} ({ehgrupo}) pela instancia {nome_inst}. id={r.get('messageid') or r.get('id') or ''}"
+        return f"Enviado para {destino} ({ehgrupo}) pela instância {nome_inst}. id={r.get('messageid') or r.get('id') or ''}"
     except Exception as e:
         return _erro(e)
 
 
 @mcp.tool()
 async def mark_read(chat: str, quantidade: int = 20, instance: str = "") -> str:
-    """Marca como lidas as ultimas mensagens recebidas de uma conversa."""
+    """Marca como lidas as últimas mensagens recebidas de uma conversa."""
     try:
         nome_inst, token, c = await _ctx(instance, chat)
         d = await uazapi.buscar_mensagens(token, c["wa_chatid"], limite=min(quantidade, 100))
@@ -412,29 +413,32 @@ async def mark_read(chat: str, quantidade: int = 20, instance: str = "") -> str:
 
 @mcp.tool()
 async def react(chat: str, message_id: str, emoji: str = "👍", instance: str = "") -> str:
-    """Reage a uma mensagem. emoji vazio remove a reacao."""
+    """Reage a uma mensagem. emoji vazio remove a reação."""
     try:
         nome_inst, token, c = await _ctx(instance, chat)
         await uazapi.post("/message/react",
                           {"number": c["wa_chatid"], "id": message_id, "text": emoji}, token)
-        return f"Reacao {emoji or '(removida)'} aplicada em {uazapi.nome_do_chat(c)}."
+        return f"Reação {emoji or '(removida)'} aplicada em {uazapi.nome_do_chat(c)}."
     except Exception as e:
         return _erro(e)
 
 
 @mcp.tool()
 async def transcribe_file(caminho: str) -> str:
-    """Transcreve um arquivo de audio local (ElevenLabs Scribe v2).
+    """Transcreve um arquivo de áudio local (ElevenLabs Scribe v2).
 
-    Util para audios ja baixados por get_media ou vindos de outro lugar.
+    Útil para áudios já baixados por get_media ou vindos de outro lugar.
     """
     p = Path(caminho).expanduser()
     if not p.is_file():
-        return f"ERRO: arquivo nao encontrado: {p}"
+        return f"ERRO: arquivo não encontrado: {p}"
     return await transcrever(p)
 
 
 def main() -> None:
+    # httpx loga cada URL em INFO; isso gravaria os links publicos de mídia no log do
+    # cliente MCP. Só avisos e erros.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     mcp.run()
 
 

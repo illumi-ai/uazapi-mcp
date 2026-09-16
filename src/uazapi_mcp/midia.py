@@ -1,9 +1,9 @@
-"""Download e transcricao das midias das mensagens.
+"""Download e transcrição das mídias das mensagens.
 
-Motivo de existir: o fluxo manual (baixar audio -> mover para pasta -> rodar skill)
-e o gargalo. Aqui o audio volta como TEXTO e a imagem como caminho local pronto
-para o Read. O fileURL da uazapi e publico sem autenticacao, entao nada de link:
-o arquivo e gravado em disco e so o caminho circula.
+Motivo de existir: o fluxo manual (baixar áudio -> mover para pasta -> rodar skill)
+é o gargalo. Aqui o áudio volta como TEXTO e a imagem como caminho local pronto
+para o Read. O fileURL da uazapi é público sem autenticação, então nada de link:
+o arquivo é gravado em disco e só o caminho circula.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import mimetypes
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import certifi
 import httpx
@@ -40,14 +41,14 @@ def pasta_do_chat(instancia: str, chat_nome: str) -> Path:
 
 
 async def transcrever(caminho: Path) -> str:
-    """Transcreve um audio com ElevenLabs Scribe v2.
+    """Transcreve um áudio com ElevenLabs Scribe v2.
 
-    A uazapi tem `transcribe: true` no /message/download, mas o servidor nao tem
-    chave OpenAI configurada e devolve so o arquivo — testado. Scribe v2 tambem
+    A uazapi tem `transcribe: true` no /message/download, mas o servidor não tem
+    chave OpenAI configurada e devolve só o arquivo — testado. Scribe v2 também
     acerta mais em pt-BR.
     """
     if not config.ELEVENLABS_API_KEY:
-        return "[transcricao indisponivel: ELEVENLABS_API_KEY nao configurada]"
+        return "[transcrição indisponível: ELEVENLABS_API_KEY não configurada]"
     chave = str(caminho)
     if chave in _cache_transcricao:
         return _cache_transcricao[chave]
@@ -61,18 +62,18 @@ async def transcrever(caminho: Path) -> str:
                     data={"model_id": "scribe_v2", "language_code": "por"},
                 )
             if r.status_code >= 400:
-                return f"[falha na transcricao: HTTP {r.status_code} {r.text[:150]}]"
+                return f"[falha na transcrição: HTTP {r.status_code} {r.text[:150]}]"
             texto = (r.json().get("text") or "").strip()
     except Exception as e:
-        return f"[falha na transcricao: {e}]"
-    texto = texto or "[audio sem fala detectada]"
+        return f"[falha na transcrição: {e}]"
+    texto = texto or "[áudio sem fala detectada]"
     _cache_transcricao[chave] = texto
     return texto
 
 
 async def processar_midia(token: str, msg: dict, destino: Path, *,
                           transcrever_audio: bool = True) -> dict[str, Any]:
-    """Baixa a midia de uma mensagem e, se for audio, transcreve.
+    """Baixa a mídia de uma mensagem e, se for áudio, transcreve.
 
     Devolve {'file': caminho|None, 'transcricao': str|None, 'erro': str|None}.
     """
@@ -85,15 +86,16 @@ async def processar_midia(token: str, msg: dict, destino: Path, *,
     try:
         r = await baixar_midia(token, mid, mp3=tipo in TIPOS_AUDIO)
     except Exception as e:
-        saida["erro"] = f"midia indisponivel ({e})"
+        saida["erro"] = f"mídia indisponível ({e})"
         return saida
     url = r.get("fileURL")
     if not url:
-        saida["erro"] = r.get("error") or "midia expirada no WhatsApp"
+        saida["erro"] = r.get("error") or "mídia expirada no WhatsApp"
         return saida
 
     conteudo = msg.get("content") if isinstance(msg.get("content"), dict) else {}
-    ext = Path(url).suffix or mimetypes.guess_extension(r.get("mimetype", "") or "") or ".bin"
+    ext = (Path(urlparse(url).path).suffix
+           or mimetypes.guess_extension(r.get("mimetype", "") or "") or ".bin")
     nome_original = conteudo.get("fileName") or ""
     base = _slug(Path(nome_original).stem, 30) if nome_original else _slug(tipo.replace("Message", ""), 20)
     arquivo = destino / f"{msg.get('messageTimestamp', 0)}-{base}{ext}"
@@ -111,7 +113,7 @@ async def processar_midia(token: str, msg: dict, destino: Path, *,
 
 async def processar_lote(token: str, msgs: list[dict], destino: Path, *,
                          transcrever_audio: bool = True, concorrencia: int = 6) -> dict[str, dict]:
-    """Processa varias midias em paralelo. Devolve {messageid: resultado}."""
+    """Processa várias mídias em paralelo. Devolve {messageid: resultado}."""
     sem = asyncio.Semaphore(concorrencia)
 
     async def uma(m: dict):

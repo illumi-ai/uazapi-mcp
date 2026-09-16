@@ -27,7 +27,7 @@ conversa.
 
 | Parâmetro | Obrigatório | Default | Exemplo |
 |---|---|---|---|
-| Chat | sim | — | `"Empresa | Suporte"`, `5562...`, ou o JID |
+| Chat | sim | — | `"Empresa \| Suporte"`, `5511...`, ou o JID |
 | Janela | não | `24h` | `"48h"`, `"3d"`, `"ontem"`, `"10/09..12/09"` |
 | Contexto | não | — | `"erro no login"`, `"não emite nota"` |
 | Instância | se houver várias | — | nome do número que recebe as mensagens |
