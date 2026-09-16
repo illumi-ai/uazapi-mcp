@@ -1,25 +1,55 @@
+<div align="center">
+
 # uazapi-mcp
 
-Servidor MCP para ler, transcrever e enviar mensagens de **WhatsApp** pela
-[uazapi](https://docs.uazapi.com/), direto do Claude Code (ou qualquer cliente MCP).
+**Seu WhatsApp dentro do Claude Code — com os áudios já transcritos.**
 
-O ganho principal: **áudio volta como texto e mídia como arquivo local, numa chamada só.**
-Em vez de baixar o áudio, mover para uma pasta, rodar uma ferramenta de transcrição e
-copiar a imagem na mão, você pede a conversa e recebe tudo pronto para analisar.
+[![tests](https://github.com/illumi-ai/uazapi-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/illumi-ai/uazapi-mcp/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
+[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io)
+
+Servidor MCP para ler, transcrever e enviar mensagens de WhatsApp pela [uazapi](https://docs.uazapi.com/).
+
+</div>
+
+---
+
+## O problema que isso resolve
+
+Um cliente manda um áudio de dois minutos explicando um bug, mais três prints. Hoje o
+caminho é: abrir o WhatsApp, baixar o áudio, mover para uma pasta, rodar alguma ferramenta
+de transcrição, baixar cada imagem, copiar tudo para o agente — e só então começar a
+trabalhar.
+
+Com este MCP, é uma pergunta:
 
 ```
 > o que o cliente falou no grupo Suporte hoje?
 
-[16/09/2026 09:12] Marcos: [audio] transcricao: "Bom dia, o sistema travou na hora de
-  emitir a nota, aparece um erro de conexão e não deixa salvar o pedido..."
-[16/09/2026 09:14] Marcos: [imagem] arquivo: ~/.uazapi-mcp/media/suporte/1789-print.jpg
-[16/09/2026 09:15] NOS: Já estamos olhando, Marcos.
+[09:12] Marcos: [audio] transcricao: "Bom dia, o sistema travou na hora de emitir a
+  nota, aparece um erro de conexão e não deixa salvar o pedido. Já tentei três vezes..."
+[09:14] Marcos: [imagem] arquivo: ~/.uazapi-mcp/media/suporte/1789-print.jpg
+[09:15] NOS: Já estamos olhando, Marcos.
 ```
+
+O áudio volta como texto. A imagem volta como arquivo local, pronto para o agente abrir.
+
+## O que dá para fazer
+
+| Você pede | O que acontece |
+|---|---|
+| *"o que chegou do cliente X hoje"* | Conversa do dia, áudios transcritos, prints baixados |
+| *"as mensagens do grupo entre 10/09 e 12/09"* | Janela fechada, agrupada por dia |
+| *"só os áudios da última semana"* | Filtra por tipo no servidor e transcreve cada um |
+| *"procura onde falaram de reembolso"* | Varredura nas conversas recentes |
+| *"manda esse resumo pro cliente"* | Prévia com destino resolvido → sua confirmação → envio |
+| *"quais grupos eu tenho?"* | Lista com identificadores |
 
 ## Instalação
 
-Requer [uv](https://docs.astral.sh/uv/) e Python 3.11+. Não precisa clonar: o `uvx` baixa
-e roda o pacote direto do repositório.
+Precisa de [uv](https://docs.astral.sh/uv/) e Python 3.11+. **Não precisa clonar** — o `uvx`
+baixa e roda direto do repositório:
 
 ```bash
 claude mcp add uazapi \
@@ -29,8 +59,11 @@ claude mcp add uazapi \
   -- uvx --from git+https://github.com/illumi-ai/uazapi-mcp uazapi-mcp
 ```
 
-Reinicie a sessão e rode `check_config` para conferir. Para outros clientes MCP
-(Claude Desktop, Cursor, etc.), o equivalente em JSON:
+Reinicie a sessão e peça ao agente para rodar `check_config` — ele confirma a conexão e
+lista as instâncias conectadas, sem revelar segredos.
+
+<details>
+<summary><b>Outros clientes MCP</b> (Claude Desktop, Cursor, Windsurf…)</summary>
 
 ```json
 {
@@ -48,111 +81,119 @@ Reinicie a sessão e rode `check_config` para conferir. Para outros clientes MCP
 }
 ```
 
-### Instalar a skill (recomendado)
+</details>
 
-O repositório traz uma skill que ensina ao agente os fluxos compostos — qual instância
-usar, como fechar janelas de tempo, quando pedir histórico e o ritual de confirmação
-antes de enviar:
+### Skills (recomendado)
+
+O repositório traz três skills que ensinam ao agente os fluxos completos:
+
+| Skill | Para que serve |
+|---|---|
+| **`whatsapp`** | Ler, buscar, baixar mídia e responder. A base |
+| **`entender-problema`** | Relato espalhado do cliente vira documento estruturado, com timeline, evidências e severidade |
+| **`resumo-do-dia`** | Briefing: o que chegou, o que está sem resposta, o que precisa de decisão |
 
 ```bash
-git clone https://github.com/illumi-ai/uazapi-mcp && cp -r uazapi-mcp/skills/whatsapp ~/.claude/skills/
+git clone https://github.com/illumi-ai/uazapi-mcp
+cp -r uazapi-mcp/skills/* ~/.claude/skills/
 ```
 
-Detalhes em [`skills/README.md`](skills/README.md).
+Detalhes e como adaptar ao seu fluxo em [`skills/README.md`](skills/README.md).
 
 ## Configuração
 
 | Variável | Obrigatória | Para que serve |
 |---|---|---|
-| `UAZAPI_SERVER` | sim | Servidor da sua conta, ex.: `https://suaempresa.uazapi.com` |
+| `UAZAPI_SERVER` | **sim** | Servidor da sua conta, ex.: `https://suaempresa.uazapi.com` |
 | `UAZAPI_ADMIN_TOKEN` | sim¹ | Lista as instâncias e resolve o token de cada uma pelo nome |
-| `UAZAPI_TOKEN` | sim¹ | Alternativa: token de **uma** instância, quando você só tem acesso a ela |
+| `UAZAPI_TOKEN` | sim¹ | Alternativa: token de **uma** instância, se você só tem acesso a ela |
 | `UAZAPI_DEFAULT_INSTANCE` | não | Instância usada quando a chamada não informa `instance` |
-| `ELEVENLABS_API_KEY` | não | Transcrição de áudio (Scribe v2). Sem ela, o áudio é baixado mas não transcrito |
-| `UAZAPI_MCP_MEDIA_DIR` | não | Onde gravar as mídias (default `~/.uazapi-mcp/media`) |
+| `ELEVENLABS_API_KEY` | não | Transcrição ([Scribe v2](https://elevenlabs.io/speech-to-text)). Sem ela o áudio é baixado, não transcrito |
+| `UAZAPI_MCP_MEDIA_DIR` | não | Onde gravar as mídias (padrão `~/.uazapi-mcp/media`) |
 | `UAZAPI_MCP_MAX_MENSAGENS`<br>`UAZAPI_MCP_MAX_TRANSCRICOES`<br>`UAZAPI_MCP_MAX_DOWNLOADS` | não | Tetos por chamada: `3000` / `30` / `60` |
 
-¹ Um dos dois. Os tokens saem do painel da uazapi.
+¹ Um dos dois. Ambos os tokens saem do painel da uazapi.
 
 As variáveis também podem ficar num `.env` — no diretório de trabalho, em
-`~/.uazapi-mcp/.env` ou em `~/.claude/.env` (nessa ordem de precedência, sempre atrás das
-variáveis já exportadas). Copie de [`.env.example`](.env.example).
+`~/.uazapi-mcp/.env` ou em `~/.claude/.env`, nessa ordem e sempre atrás das variáveis já
+exportadas. Copie de [`.env.example`](.env.example).
 
 ## Tools
 
-### Leitura
+<table>
+<tr><th colspan="2" align="left">Leitura</th></tr>
+<tr><td><code>check_config</code></td><td>Estado da configuração e teste de conexão, sem revelar segredos</td></tr>
+<tr><td><code>list_instances</code></td><td>Números disponíveis no servidor e quais estão conectados</td></tr>
+<tr><td><code>list_chats</code></td><td>Conversas por recência, com busca por nome e filtro grupo/individual</td></tr>
+<tr><td><code>list_groups</code></td><td>Grupos de que o número participa, com identificador</td></tr>
+<tr><td><b><code>get_messages</code></b></td><td><b>A principal.</b> Conversa numa janela de tempo, áudios transcritos e mídias baixadas</td></tr>
+<tr><td><code>get_media</code></td><td>Só os arquivos de um período, por tipo</td></tr>
+<tr><td><code>search_messages</code></td><td>Procura um termo nas mensagens recentes</td></tr>
+<tr><td><code>get_chat_info</code></td><td>Detalhes de um contato ou grupo</td></tr>
+<tr><td><code>sync_history</code></td><td>Pede ao celular o histórico que a uazapi já expurgou</td></tr>
+<tr><th colspan="2" align="left">Envio</th></tr>
+<tr><td><code>send_text</code></td><td>Envia texto — confirmação em duas etapas</td></tr>
+<tr><td><code>send_media</code></td><td>Envia arquivo ou URL — confirmação em duas etapas</td></tr>
+<tr><td><code>mark_read</code></td><td>Marca as últimas mensagens como lidas</td></tr>
+<tr><td><code>react</code></td><td>Reage a uma mensagem</td></tr>
+<tr><td><code>transcribe_file</code></td><td>Transcreve um áudio local</td></tr>
+</table>
 
-| Tool | O que faz |
-|---|---|
-| `check_config` | Estado da configuração e teste de conexão, sem revelar segredos |
-| `list_instances` | Números de WhatsApp disponíveis no servidor e quais estão conectados |
-| `list_chats` | Conversas por recência, com busca por nome e filtro grupo/individual |
-| `list_groups` | Grupos de que o número participa, com identificador |
-| `get_messages` | **Principal.** Conversa numa janela de tempo, áudios transcritos e mídias baixadas |
-| `get_media` | Só os arquivos de um período, por tipo (áudio, imagem, vídeo, documento) |
-| `search_messages` | Procura um termo nas mensagens recentes |
-| `get_chat_info` | Detalhes de um contato ou grupo |
-| `sync_history` | Pede ao celular o histórico antigo que a uazapi já expurgou |
+Parâmetros completos em [`docs/tools.md`](docs/tools.md).
 
-### Envio
+### Datas em português
 
-| Tool | O que faz |
-|---|---|
-| `send_text` | Envia texto — exige confirmação em duas etapas |
-| `send_media` | Envia arquivo local ou URL — exige confirmação em duas etapas |
-| `mark_read` | Marca as últimas mensagens recebidas como lidas |
-| `react` | Reage a uma mensagem |
-| `transcribe_file` | Transcreve um arquivo de áudio local |
-
-Referência completa dos parâmetros em [`docs/tools.md`](docs/tools.md).
-
-### Janelas de tempo
-
-`get_messages`, `get_media` e `search_messages` aceitam datas em linguagem natural:
+`get_messages`, `get_media` e `search_messages` entendem data como gente fala:
 
 | Expressão | Significado |
 |---|---|
-| `hoje`, `ontem`, `anteontem` | O dia inteiro (use `until` igual para fechar) |
-| `2h`, `30min`, `3d`, `1 semana` | Contado a partir de agora |
+| `hoje`, `ontem`, `anteontem` | O dia inteiro (repita em `until` para fechar) |
+| `2h`, `30min`, `3d`, `1 semana` | A partir de agora |
 | `semana`, `mes` | Desde o início da semana/mês corrente |
-| `10/09`, `10/09/2026`, `10/09 14:30` | Data brasileira, com hora opcional |
-| `2026-09-10`, `2026-09-10 14:30` | ISO |
+| `10/09`, `10/09/2026`, `10/09 14:30` | Data brasileira, hora opcional |
+| `2026-09-10 14:30` | ISO |
 | `10/09..12/09` | Intervalo, no campo `since` |
 
-### Envio em duas etapas
+### Enviar exige duas etapas
 
 `send_text` e `send_media` com `confirmar=False` (o padrão) **não enviam nada**: devolvem
 uma prévia com a instância, o destino já resolvido, se é grupo, e o conteúdo. Só a
-repetição da chamada com `confirmar=True` dispara. O destino costuma vir de um nome
-parcial — a prévia é o que impede a mensagem de cair no grupo errado.
+repetição com `confirmar=True` dispara.
+
+O destino quase sempre vem de um nome parcial. A prévia é o que impede a mensagem de cair
+no grupo errado — e mensagem enviada em grupo de cliente não tem desfazer.
 
 ## Limites da API (medidos, não supostos)
 
-1. **Não há filtro de data no servidor.** `/message/find` ignora `messageTimestamp`,
-   `dateStart`/`dateEnd` — testado com janelas discriminantes. O recorte por período é
-   feito no cliente, paginando do mais recente para trás: barato para janelas recentes,
-   caro para varrer meses.
-2. **`fromMe` e `messageType` filtram server-side** (conferido contra a contagem real do
-   chat). Por isso `tipo_mensagem="AudioMessage"` é eficiente.
-3. **`transcribe: true` do `/message/download` pode não transcrever**: depende de uma
-   chave OpenAI configurada no servidor uazapi. Quando não há, devolve só o arquivo — daí
-   a transcrição local via Scribe v2.
-4. **O `fileURL` devolvido pela uazapi é público, sem autenticação.** Confirmado baixando
-   o arquivo sem nenhum token. Este servidor grava a mídia em disco e devolve o caminho;
-   o link nunca circula.
-5. **A uazapi expurga o histórico antigo** em poucos dias. Para períodos que o
-   `get_messages` não alcança, use `sync_history` (exige o celular do dono online) e
-   espere cerca de um minuto.
-6. **Mídia antiga expira no WhatsApp** e não volta. O transcript registra o que era.
+> A documentação da uazapi promete algumas coisas que o servidor não entrega. Tudo abaixo
+> foi verificado com chamadas reais e testes discriminantes — o raciocínio completo está em
+> [`docs/api-uazapi.md`](docs/api-uazapi.md).
 
-Notas detalhadas em [`docs/api-uazapi.md`](docs/api-uazapi.md).
+1. **Não existe filtro de data no servidor.** `/message/find` ignora `messageTimestamp`,
+   `dateStart`/`dateEnd` e variações. O recorte por período é feito no cliente, paginando
+   do mais recente para trás: barato para janelas recentes, caro para varrer meses.
+2. **`fromMe` e `messageType` filtram server-side** — conferido contra a contagem real do
+   chat. Por isso pedir só os áudios é eficiente.
+3. **`transcribe: true` do `/message/download` pode não transcrever**: depende de uma chave
+   OpenAI configurada no servidor uazapi. Sem ela, devolve só o arquivo, sem erro. Daí a
+   transcrição local via Scribe v2.
+4. **O `fileURL` da uazapi é público, sem autenticação** — confirmado baixando o arquivo
+   sem nenhum token. Este servidor grava a mídia em disco e devolve o caminho; o link nunca
+   circula.
+5. **A uazapi expurga o histórico antigo** em poucos dias. Para períodos que o
+   `get_messages` não alcança, use `sync_history` (exige o celular do dono online).
+6. **Mídia antiga expira no WhatsApp** e não volta. O transcript registra o que era.
 
 ## Privacidade
 
-Conversas de WhatsApp são dados pessoais de terceiros. Este servidor grava mídias no disco
-local (`~/.uazapi-mcp/media` por padrão) e as transcrições passam pela API da ElevenLabs
-quando você configura a chave. Use com a autorização de quem é dono do número, mantenha a
-pasta de mídias fora de qualquer repositório e apague o que não precisa mais.
+Conversa de WhatsApp é dado pessoal de terceiro. Este servidor grava mídias no disco local
+e, quando você configura a chave, as transcrições passam pela API da ElevenLabs. Use com a
+autorização de quem é dono do número, mantenha a pasta de mídias fora de qualquer
+repositório (o `.gitignore` já cobre) e apague o que não precisa mais.
+
+As tools de envio existem, mas este projeto não implementa disparo em massa — a API da
+uazapi tem `/sender/*` para isso, e é justamente o tipo de ferramenta que não deve ficar a
+uma chamada de distância de um agente autônomo.
 
 ## Desenvolvimento
 
@@ -160,16 +201,19 @@ pasta de mídias fora de qualquer repositório e apague o que não precisa mais.
 git clone https://github.com/illumi-ai/uazapi-mcp && cd uazapi-mcp
 cp .env.example .env    # preencha
 uv sync
-uv run --group dev pytest        # 31 testes, sem rede
-uv run uazapi-mcp                # roda o servidor em stdio
+uv run --group dev pytest    # 31 testes, sem rede
+uv run uazapi-mcp            # servidor em stdio
 ```
 
-Para apontar o Claude Code para o clone local em vez do GitHub:
+Apontar o Claude Code para o clone local:
 
 ```bash
 claude mcp add uazapi -- uv run --directory /caminho/para/uazapi-mcp uazapi-mcp
 ```
 
+Contribuições: [CONTRIBUTING.md](CONTRIBUTING.md) · Histórico: [CHANGELOG.md](CHANGELOG.md)
+
 ## Licença
 
-MIT — veja [LICENSE](LICENSE).
+MIT — veja [LICENSE](LICENSE). Projeto independente, sem vínculo com a uazapi ou com o
+WhatsApp.
