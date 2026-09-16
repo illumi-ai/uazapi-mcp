@@ -1,0 +1,19 @@
+# Segredos e dados de conversas — nunca versionar
+.env
+media/
+*.mp3
+*.ogg
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Editor / SO
+.DS_Store
+.idea/
+.vscode/

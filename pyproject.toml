@@ -1,0 +1,39 @@
+[project]
+name = "uazapi-mcp"
+version = "0.1.0"
+description = "MCP server para ler, transcrever e enviar mensagens de WhatsApp via uazapi"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["mcp", "whatsapp", "uazapi", "claude", "model-context-protocol"]
+authors = [{ name = "illumi" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "mcp>=1.2.0",
+    "httpx>=0.27",
+    "certifi",
+]
+
+[project.urls]
+Homepage = "https://github.com/illumi-ai/uazapi-mcp"
+Issues = "https://github.com/illumi-ai/uazapi-mcp/issues"
+
+[project.scripts]
+uazapi-mcp = "uazapi_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uazapi_mcp"]
