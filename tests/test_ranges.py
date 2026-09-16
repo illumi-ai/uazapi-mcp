@@ -72,9 +72,21 @@ def test_until_fecha_no_fim_do_dia():
 
 
 def test_expressao_invalida_explica_o_formato():
-    with pytest.raises(ValueError, match="Nao entendi a data"):
+    with pytest.raises(ValueError, match="Não entendi a data"):
         parse_momento("semana que vem talvez")
 
 
 def test_fmt_formato_brasileiro():
     assert fmt(parse_momento("10/09/2026 14:30")) == "10/09/2026 14:30"
+
+
+def test_normalizar_ignora_acento_e_caixa():
+    from uazapi_mcp.ranges import normalizar
+    assert normalizar("  Mês ") == "mes"
+    assert normalizar("Áudio") == "audio"
+    assert normalizar("últimos 3 dias") == "ultimos 3 dias"
+
+
+def test_palavras_chave_aceitam_acento():
+    assert parse_momento("mês") == parse_momento("mes")
+    assert parse_momento("Últimos 3 dias") == pytest.approx(parse_momento("3d"), abs=2000)

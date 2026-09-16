@@ -1,0 +1,66 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: A tag bate com __version__?
+        run: |
+          v=$(python3 -c "import re,pathlib;print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('src/uazapi_mcp/__init__.py').read_text()).group(1))")
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME nao bate com __version__ = $v"; exit 1
+          fi
+
+      - name: Testes e lint
+        run: |
+          uv run --group dev pytest -q
+          uv run --group dev ruff check src tests
+
+      - name: Build (wheel + sdist)
+        run: uv build
+
+      - name: Notas a partir do CHANGELOG
+        run: python3 scripts/notas_release.py "$GITHUB_REF_NAME" > notas.md && cat notas.md
+
+      - name: Release no GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notas.md
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    # Desligado por padrao. Ligue criando a variavel de repositorio PYPI_PUBLISH=true
+    # depois de configurar o trusted publisher no PyPI (veja CONTRIBUTING.md).
+    needs: build
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

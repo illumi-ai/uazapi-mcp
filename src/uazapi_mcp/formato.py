@@ -3,16 +3,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from .midia import TIPOS_AUDIO, TIPOS_DOC, TIPOS_IMAGEM, TIPOS_MIDIA, TIPOS_VIDEO
+from .midia import TIPOS_MIDIA
 from .ranges import fmt, fmt_dia
 
 TIPOS_TEXTO = {"Conversation", "ExtendedTextMessage", "TextMessage"}
 
 _ROTULO = {
-    "ImageMessage": "imagem", "StickerMessage": "sticker", "VideoMessage": "video",
-    "PtvMessage": "video-circulo", "AudioMessage": "audio", "PttMessage": "audio",
-    "DocumentMessage": "documento", "AlbumMessage": "album", "LocationMessage": "localizacao",
-    "ContactMessage": "contato", "ReactionMessage": "reacao", "PollCreationMessage": "enquete",
+    "ImageMessage": "imagem", "StickerMessage": "sticker", "VideoMessage": "vídeo",
+    "PtvMessage": "vídeo-círculo", "AudioMessage": "áudio", "PttMessage": "áudio",
+    "DocumentMessage": "documento", "AlbumMessage": "álbum", "LocationMessage": "localização",
+    "ContactMessage": "contato", "ReactionMessage": "reação", "PollCreationMessage": "enquete",
 }
 
 
@@ -24,7 +24,7 @@ def texto_da_msg(m: dict) -> str:
 def autor(m: dict, grupo: bool) -> str:
     if m.get("fromMe"):
         nome = m.get("senderName") or "nos"
-        return f"NOS ({nome})" if grupo and m.get("senderName") else "NOS"
+        return f"NÓS ({nome})" if grupo and m.get("senderName") else "NÓS"
     nome = m.get("senderName") or m.get("sender") or ""
     if grupo:
         numero = str(m.get("sender") or "").split("@")[0]
@@ -50,13 +50,13 @@ def linha(m: dict, grupo: bool, midias: dict[str, dict] | None = None) -> str:
     info = midias.get(m.get("messageid", ""))
     if info:
         if info.get("transcricao"):
-            partes.append(f'transcricao: "{info["transcricao"]}"')
+            partes.append(f'transcrição: "{info["transcricao"]}"')
         if info.get("file"):
             partes.append(f"arquivo: {info['file']}")
         if info.get("erro") and not info.get("file"):
             partes.append(f"({info['erro']})")
     elif tipo in TIPOS_MIDIA and not corpo:
-        partes.append("(midia nao baixada)")
+        partes.append("(mídia não baixada)")
 
     return f"[{ts}] {quem}: " + " ".join(p for p in partes if p)
 
@@ -68,7 +68,7 @@ def transcript(chat: dict, msgs: list[dict], *, midias: dict[str, dict] | None =
     nome = nome_do_chat(chat)
     jid = chat.get("wa_chatid", "")
     if not msgs:
-        return f"# {nome}\n\nNenhuma mensagem no periodo pedido.\n{cabecalho}"
+        return f"# {nome}\n\nNenhuma mensagem no período pedido.\n{cabecalho}"
 
     L = [f"# {nome} ({'grupo' if grupo else jid.split('@')[0]})", ""]
     if cabecalho:
@@ -94,7 +94,7 @@ def resumo_chats(chats: list[dict]) -> str:
     from .uazapi import nome_do_chat
     if not chats:
         return "Nenhum chat encontrado."
-    L = ["| Chat | Tipo | Identificador | Ultima mensagem |", "|---|---|---|---|"]
+    L = ["| Chat | Tipo | Identificador | Última mensagem |", "|---|---|---|---|"]
     for c in chats:
         tipo = "grupo" if c.get("wa_isGroup") else "individual"
         ident = c.get("wa_chatid", "")

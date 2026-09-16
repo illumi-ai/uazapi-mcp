@@ -49,7 +49,7 @@ A tool principal.
 | `tipo_mensagem` | str | `""` | Ex.: `AudioMessage`, `ImageMessage`, `DocumentMessage` |
 
 Devolve o transcript agrupado por dia. Cada linha: `[data hora] autor: conteúdo`, com
-`[audio] transcricao: "..."` e `arquivo: /caminho` quando houver mídia.
+`[áudio] transcrição: "..."` e `arquivo: /caminho` quando houver mídia.
 
 **Resolução de `chat`:** nome exato ganha; nome parcial ambíguo devolve a lista de
 candidatos em vez de escolher sozinho; número é normalizado para JID.
