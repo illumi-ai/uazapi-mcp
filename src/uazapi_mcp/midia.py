@@ -27,6 +27,7 @@ TIPOS_DOC = {"DocumentMessage"}
 TIPOS_MIDIA = TIPOS_AUDIO | TIPOS_IMAGEM | TIPOS_VIDEO | TIPOS_DOC | {"AlbumMessage"}
 
 _cache_transcricao: dict[str, str] = {}
+_TENTATIVAS_TRANSCRICAO = 4
 
 
 def _slug(texto: str, limite: int = 40) -> str:
@@ -40,27 +41,52 @@ def pasta_do_chat(instancia: str, chat_nome: str) -> Path:
     return p
 
 
+def espera_para_repetir(retry_after: str | None, tentativa: int) -> float:
+    """Segundos até repetir: o Retry-After do provedor (entre 0,5 e 15 s) ou 2, 4, 6..."""
+    try:
+        return min(max(float(retry_after), 0.5), 15.0)
+    except (TypeError, ValueError):
+        return 2.0 * (tentativa + 1)
+
+
+async def _enviar_para_transcricao(cli: httpx.AsyncClient, caminho: Path) -> httpx.Response:
+    with caminho.open("rb") as fh:
+        if config.PROVEDOR_TRANSCRICAO == "openrouter":
+            mime = mimetypes.guess_type(caminho.name)[0] or "audio/mpeg"
+            return await cli.post(
+                f"{config.OPENROUTER_BASE_URL}/audio/transcriptions",
+                headers={"Authorization": f"Bearer {config.OPENROUTER_API_KEY}"},
+                files={"file": (caminho.name, fh, mime)},
+                data={"model": config.TRANSCRICAO_MODELO, "language": "pt"},
+            )
+        return await cli.post(
+            "https://api.elevenlabs.io/v1/speech-to-text",
+            headers={"xi-api-key": config.ELEVENLABS_API_KEY},
+            files={"file": (caminho.name, fh, "audio/mpeg")},
+            data={"model_id": "scribe_v2", "language_code": "por"},
+        )
+
+
 async def transcrever(caminho: Path) -> str:
-    """Transcreve um áudio com ElevenLabs Scribe v2.
+    """Transcreve um áudio com ElevenLabs Scribe v2 ou um modelo STT da OpenRouter.
 
     A uazapi tem `transcribe: true` no /message/download, mas o servidor não tem
-    chave OpenAI configurada e devolve só o arquivo — testado. Scribe v2 também
-    acerta mais em pt-BR.
+    chave OpenAI configurada e devolve só o arquivo — testado. Daí a transcrição local.
     """
-    if not config.ELEVENLABS_API_KEY:
-        return "[transcrição indisponível: ELEVENLABS_API_KEY não configurada]"
+    if not config.PROVEDOR_TRANSCRICAO:
+        return "[transcrição indisponível: configure ELEVENLABS_API_KEY ou OPENROUTER_API_KEY]"
     chave = str(caminho)
     if chave in _cache_transcricao:
         return _cache_transcricao[chave]
     try:
         async with httpx.AsyncClient(verify=certifi.where(), timeout=300.0) as cli:
-            with caminho.open("rb") as fh:
-                r = await cli.post(
-                    "https://api.elevenlabs.io/v1/speech-to-text",
-                    headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-                    files={"file": (caminho.name, fh, "audio/mpeg")},
-                    data={"model_id": "scribe_v2", "language_code": "por"},
-                )
+            for tentativa in range(_TENTATIVAS_TRANSCRICAO):
+                r = await _enviar_para_transcricao(cli, caminho)
+                # 429 e 5xx são passageiros: em lote, o provedor limita as chamadas paralelas.
+                if r.status_code != 429 and r.status_code < 500:
+                    break
+                if tentativa < _TENTATIVAS_TRANSCRICAO - 1:
+                    await asyncio.sleep(espera_para_repetir(r.headers.get("retry-after"), tentativa))
             if r.status_code >= 400:
                 return f"[falha na transcrição: HTTP {r.status_code} {r.text[:150]}]"
             texto = (r.json().get("text") or "").strip()

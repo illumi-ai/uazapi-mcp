@@ -10,7 +10,7 @@ O usuário final é um agente (Claude Code ou outro cliente MCP); tudo que o ser
 |---|---|
 | `src/uazapi_mcp/server.py` | As 14 tools. Cada uma resolve instância → chat → chama a API → formata |
 | `src/uazapi_mcp/uazapi.py` | Cliente HTTP (retry, erros), resolução de instância e de chat |
-| `src/uazapi_mcp/midia.py` | Download para disco e transcrição (ElevenLabs Scribe v2) |
+| `src/uazapi_mcp/midia.py` | Download para disco e transcrição (ElevenLabs Scribe v2 ou OpenRouter) |
 | `src/uazapi_mcp/ranges.py` | Datas em linguagem natural → timestamps. Sem rede |
 | `src/uazapi_mcp/formato.py` | Transcript e tabelas em Markdown. Sem rede |
 | `src/uazapi_mcp/config.py` | Variáveis de ambiente e `.env`. Nunca lê o `.env` do cwd |

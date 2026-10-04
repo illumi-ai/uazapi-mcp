@@ -96,9 +96,14 @@ async def check_config() -> str:
             L.append("Nenhuma instância conectada: conecte uma no painel uazapi antes de ler mensagens.")
     except Exception as e:
         L.append(f"Falha ao falar com {config.SERVER}: {e}")
-    if not config.ELEVENLABS_API_KEY:
+    if not config.PROVEDOR_TRANSCRICAO:
         L.append("")
-        L.append("ELEVENLABS_API_KEY ausente: áudios serão baixados, mas não transcritos.")
+        if config.TRANSCRICAO_PEDIDA in ("elevenlabs", "openrouter"):
+            L.append(f"UAZAPI_MCP_TRANSCRICAO={config.TRANSCRICAO_PEDIDA}, mas a chave desse provedor "
+                     "não está definida: áudios serão baixados, mas não transcritos.")
+        elif config.TRANSCRICAO_PEDIDA != "desligada":
+            L.append("Sem ELEVENLABS_API_KEY nem OPENROUTER_API_KEY: áudios serão baixados, "
+                     "mas não transcritos.")
     return "\n".join(L)
 
 
@@ -170,7 +175,7 @@ async def get_messages(chat: str, since: str = "", until: str = "", limite: int 
     chat: nome do contato/grupo, número (5562...) ou identificador completo.
     since/until: 'hoje', 'ontem', '3d', '2h', '10/09', '10/09 14:30', '2026-09-10'.
                  Tambem aceita intervalo em since: '10/09..12/09'. Vazio = mais recentes.
-    transcrever_audios: áudios voltam como texto (ElevenLabs Scribe v2).
+    transcrever_audios: áudios voltam como texto (ElevenLabs Scribe v2 ou OpenRouter).
     baixar_midias: imagens/vídeos/documentos são gravados em disco e o caminho vem no
                    transcript, pronto para o Read.
     tipo_mensagem: filtra por tipo, ex 'AudioMessage', 'ImageMessage', 'DocumentMessage'.
@@ -425,7 +430,7 @@ async def react(chat: str, message_id: str, emoji: str = "👍", instance: str =
 
 @mcp.tool()
 async def transcribe_file(caminho: str) -> str:
-    """Transcreve um arquivo de áudio local (ElevenLabs Scribe v2).
+    """Transcreve um arquivo de áudio local (ElevenLabs Scribe v2 ou OpenRouter).
 
     Útil para áudios já baixados por get_media ou vindos de outro lugar.
     """

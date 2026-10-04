@@ -64,6 +64,10 @@ Para fixar uma versão, troque a origem por `git+https://github.com/illumi-ai/ua
 As versões estão em [Releases](https://github.com/illumi-ai/uazapi-mcp/releases), cada uma com
 wheel e sdist anexados.
 
+Para transcrever pela [OpenRouter](https://openrouter.ai) em vez da ElevenLabs, troque
+`ELEVENLABS_API_KEY` por `OPENROUTER_API_KEY`. O modelo padrão é
+`microsoft/mai-transcribe-2`; outro modelo de transcrição entra em `UAZAPI_MCP_TRANSCRICAO_MODELO`.
+
 Reinicie a sessão e peça ao agente para rodar `check_config` — ele confirma a conexão e
 lista as instâncias conectadas, sem revelar segredos.
 
@@ -113,7 +117,10 @@ Detalhes e como adaptar ao seu fluxo em [`skills/README.md`](skills/README.md).
 | `UAZAPI_ADMIN_TOKEN` | sim¹ | Lista as instâncias e resolve o token de cada uma pelo nome |
 | `UAZAPI_TOKEN` | sim¹ | Alternativa: token de **uma** instância, se você só tem acesso a ela |
 | `UAZAPI_DEFAULT_INSTANCE` | não | Instância usada quando a chamada não informa `instance` |
-| `ELEVENLABS_API_KEY` | não | Transcrição ([Scribe v2](https://elevenlabs.io/speech-to-text)). Sem ela o áudio é baixado, não transcrito |
+| `ELEVENLABS_API_KEY` | não | Transcrição ([Scribe v2](https://elevenlabs.io/speech-to-text)). Sem ela nem `OPENROUTER_API_KEY`, o áudio é baixado, não transcrito |
+| `OPENROUTER_API_KEY` | não | Transcrição pela OpenRouter (`/audio/transcriptions`) |
+| `UAZAPI_MCP_TRANSCRICAO_MODELO` | não | Modelo de transcrição da OpenRouter (padrão `microsoft/mai-transcribe-2`) |
+| `UAZAPI_MCP_TRANSCRICAO` | não | `elevenlabs`, `openrouter` ou `desligada`. Vazio: ElevenLabs se houver a chave, senão OpenRouter |
 | `UAZAPI_MCP_MEDIA_DIR` | não | Onde gravar as mídias (padrão `~/.uazapi-mcp/media`) |
 | `UAZAPI_MCP_MAX_MENSAGENS`<br>`UAZAPI_MCP_MAX_TRANSCRICOES`<br>`UAZAPI_MCP_MAX_DOWNLOADS` | não | Tetos por chamada: `3000` / `30` / `60` |
 
@@ -183,7 +190,7 @@ no grupo errado — e mensagem enviada em grupo de cliente não tem desfazer.
    chat. Por isso pedir só os áudios é eficiente.
 3. **`transcribe: true` do `/message/download` pode não transcrever**: depende de uma chave
    OpenAI configurada no servidor uazapi. Sem ela, devolve só o arquivo, sem erro. Daí a
-   transcrição local via Scribe v2.
+   transcrição feita aqui, via Scribe v2 ou OpenRouter.
 4. **O `fileURL` da uazapi é público, sem autenticação** — confirmado baixando o arquivo
    sem nenhum token. Este servidor grava a mídia em disco e devolve o caminho; o link nunca
    circula.
@@ -194,7 +201,7 @@ no grupo errado — e mensagem enviada em grupo de cliente não tem desfazer.
 ## Privacidade
 
 Conversa de WhatsApp é dado pessoal de terceiro. Este servidor grava mídias no disco local
-e, quando você configura a chave, as transcrições passam pela API da ElevenLabs. Use com a
+e, quando você configura a chave, os áudios passam pela API de transcrição escolhida (ElevenLabs ou OpenRouter). Use com a
 autorização de quem é dono do número, mantenha a pasta de mídias fora de qualquer
 repositório (o `.gitignore` já cobre) e apague o que não precisa mais.
 
