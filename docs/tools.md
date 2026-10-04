@@ -10,7 +10,8 @@ exceção crua.
 ## check_config
 
 Estado da configuração e teste de conexão. Não recebe parâmetros. Mostra quais variáveis
-estão definidas (sem revelar valores), quantas instâncias existem e quais estão conectadas.
+estão definidas (sem revelar valores), qual provedor transcreve os áudios, quantas instâncias
+existem e quais estão conectadas.
 
 ## list_instances
 
@@ -128,6 +129,8 @@ Arquivos locais são enviados em base64; URLs são repassadas à uazapi.
 | `emoji` | str | `"👍"` | Vazio remove a reação |
 
 ## transcribe_file
+
+Usa o mesmo provedor das outras tools (ver `UAZAPI_MCP_TRANSCRICAO` no README).
 
 | Parâmetro | Tipo | Default | Descrição |
 |---|---|---|---|

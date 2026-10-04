@@ -5,6 +5,21 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versioname
 
 ## [Unreleased]
 
+### Adicionado
+
+- Transcrição pela OpenRouter (`/audio/transcriptions`), com `microsoft/mai-transcribe-2` como
+  padrão: `OPENROUTER_API_KEY`, `UAZAPI_MCP_TRANSCRICAO_MODELO` e `UAZAPI_MCP_TRANSCRICAO`
+  (`elevenlabs`, `openrouter` ou `desligada`). No automático, a ElevenLabs continua na frente
+  quando a chave dela existe.
+- A transcrição repete sozinha em 429 e 5xx, respeitando o `Retry-After`.
+- `check_config` mostra qual provedor transcreve.
+
+### Mudado
+
+- Com `OPENROUTER_API_KEY` no ambiente e sem a chave da ElevenLabs, os áudios passam a ser
+  transcritos (e cobrados) pela OpenRouter. Antes eram só baixados. Para manter como era:
+  `UAZAPI_MCP_TRANSCRICAO=desligada`.
+
 ## [0.1.0] - 2026-09-16
 
 Primeira versão.

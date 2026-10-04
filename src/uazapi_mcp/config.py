@@ -47,7 +47,31 @@ ADMIN_TOKEN = os.environ.get("UAZAPI_ADMIN_TOKEN", "")
 INSTANCE_TOKEN = os.environ.get("UAZAPI_TOKEN", "")
 DEFAULT_INSTANCE = os.environ.get("UAZAPI_DEFAULT_INSTANCE", "")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+TRANSCRICAO_MODELO = os.environ.get("UAZAPI_MCP_TRANSCRICAO_MODELO") or "microsoft/mai-transcribe-2"
 MEDIA_DIR = Path(os.environ.get("UAZAPI_MCP_MEDIA_DIR") or (HOME_DIR / "media")).expanduser()
+
+
+
+def escolher_provedor(escolha: str, *, elevenlabs: bool, openrouter: bool) -> str:
+    """Provedor de transcrição: o pedido em UAZAPI_MCP_TRANSCRICAO, senão o primeiro com chave.
+
+    No automático a ElevenLabs vem antes para não mudar quem já a usava. Devolve "" com
+    "desligada", quando o provedor escolhido não tem chave ou quando nenhum tem.
+    """
+    chaves = {"elevenlabs": elevenlabs, "openrouter": openrouter}
+    escolha = escolha.strip().lower()
+    if escolha == "desligada":
+        return ""
+    if escolha in chaves:
+        return escolha if chaves[escolha] else ""
+    return next((p for p, ok in chaves.items() if ok), "")
+
+
+TRANSCRICAO_PEDIDA = os.environ.get("UAZAPI_MCP_TRANSCRICAO", "").strip().lower()
+PROVEDOR_TRANSCRICAO = escolher_provedor(
+    TRANSCRICAO_PEDIDA, elevenlabs=bool(ELEVENLABS_API_KEY), openrouter=bool(OPENROUTER_API_KEY))
 
 # Limites de segurança: impedem que uma chamada solta puxe a base inteira.
 MAX_MENSAGENS = int(os.environ.get("UAZAPI_MCP_MAX_MENSAGENS", "3000"))
@@ -68,6 +92,14 @@ def checar_servidor() -> None:
         )
 
 
+def descricao_transcricao() -> str:
+    if PROVEDOR_TRANSCRICAO == "openrouter":
+        return f"OpenRouter ({TRANSCRICAO_MODELO})"
+    if PROVEDOR_TRANSCRICAO == "elevenlabs":
+        return "ElevenLabs Scribe v2"
+    return "desligada"
+
+
 def diagnostico() -> dict[str, str]:
     """Estado da configuração, sem revelar segredos."""
     def marca(v: str) -> str:
@@ -79,5 +111,8 @@ def diagnostico() -> dict[str, str]:
         "UAZAPI_TOKEN": marca(INSTANCE_TOKEN),
         "UAZAPI_DEFAULT_INSTANCE": DEFAULT_INSTANCE or "não definido",
         "ELEVENLABS_API_KEY": marca(ELEVENLABS_API_KEY),
+        "OPENROUTER_API_KEY": marca(OPENROUTER_API_KEY),
+        "UAZAPI_MCP_TRANSCRICAO": TRANSCRICAO_PEDIDA or "automático",
+        "transcrição": descricao_transcricao(),
         "pasta de mídias": str(MEDIA_DIR),
     }
