@@ -7,8 +7,11 @@ pelo nome; toda leitura e envio usa o token da instância.
 from __future__ import annotations
 
 import asyncio
+import os
+import secrets
 import ssl
 import time
+from pathlib import Path
 from typing import Any
 
 import certifi
@@ -211,9 +214,20 @@ async def baixar_midia(token: str, message_id: str, *, mp3: bool = True) -> dict
                       {"id": message_id, "return_link": True, "generate_mp3": mp3}, token)
 
 
+def gravar_atomico(destino, conteudo: bytes) -> None:
+    """Grava num temporário ao lado e renomeia: quem lê o caminho nunca pega arquivo pela metade."""
+    destino = Path(destino)
+    tmp = destino.with_name(f".{destino.name}.{secrets.token_hex(4)}.part")
+    try:
+        tmp.write_bytes(conteudo)
+        os.replace(tmp, destino)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 async def baixar_arquivo(url: str, destino) -> int:
     async with httpx.AsyncClient(verify=_CTX, timeout=180.0, follow_redirects=True) as cli:
         r = await cli.get(url)
         r.raise_for_status()
-        destino.write_bytes(r.content)
+        gravar_atomico(destino, r.content)
         return len(r.content)

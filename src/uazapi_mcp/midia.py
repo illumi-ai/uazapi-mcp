@@ -8,6 +8,7 @@ o arquivo é gravado em disco e só o caminho circula.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import mimetypes
 import re
 from pathlib import Path
@@ -27,6 +28,7 @@ TIPOS_DOC = {"DocumentMessage"}
 TIPOS_MIDIA = TIPOS_AUDIO | TIPOS_IMAGEM | TIPOS_VIDEO | TIPOS_DOC | {"AlbumMessage"}
 
 _cache_transcricao: dict[str, str] = {}
+_transcricoes_em_andamento: dict[str, asyncio.Future] = {}
 
 
 def _slug(texto: str, limite: int = 40) -> str:
@@ -40,18 +42,50 @@ def pasta_do_chat(instancia: str, chat_nome: str) -> Path:
     return p
 
 
+def nome_do_arquivo(msg: dict, ext: str) -> str:
+    """Nome local da mídia de uma mensagem: horário, id e rótulo.
+
+    Só o horário não basta: áudios encaminhados juntos chegam com o mesmo
+    messageTimestamp, e um arquivo sobrescrevia o outro.
+    """
+    conteudo = msg.get("content") if isinstance(msg.get("content"), dict) else {}
+    nome_original = conteudo.get("fileName") or ""
+    tipo = msg.get("messageType", "")
+    base = _slug(Path(nome_original).stem, 30) if nome_original else _slug(tipo.replace("Message", ""), 20)
+    mid = _slug(msg.get("messageid") or msg.get("id") or "", 64)[-12:]
+    return f"{msg.get('messageTimestamp', 0)}-{mid}-{base}{ext}"
+
+
 async def transcrever(caminho: Path) -> str:
     """Transcreve um áudio com ElevenLabs Scribe v2.
 
     A uazapi tem `transcribe: true` no /message/download, mas o servidor não tem
     chave OpenAI configurada e devolve só o arquivo — testado. Scribe v2 também
     acerta mais em pt-BR.
+
+    O cache é pelo conteúdo: o mesmo áudio encaminhado duas vezes é transcrito uma
+    vez só, mesmo quando as duas cópias chegam juntas.
     """
     if not config.ELEVENLABS_API_KEY:
         return "[transcrição indisponível: ELEVENLABS_API_KEY não configurada]"
-    chave = str(caminho)
+    chave = hashlib.sha256(caminho.read_bytes()).hexdigest()
     if chave in _cache_transcricao:
         return _cache_transcricao[chave]
+    tarefa = _transcricoes_em_andamento.get(chave)
+    if tarefa is None:
+        tarefa = asyncio.ensure_future(_chamar_scribe(caminho))
+        _transcricoes_em_andamento[chave] = tarefa
+    try:
+        ok, texto = await tarefa
+    finally:
+        _transcricoes_em_andamento.pop(chave, None)
+    if ok:
+        _cache_transcricao[chave] = texto
+    return texto
+
+
+async def _chamar_scribe(caminho: Path) -> tuple[bool, str]:
+    """Uma chamada ao Scribe v2. Devolve (sucesso, texto ou mensagem de falha)."""
     try:
         async with httpx.AsyncClient(verify=certifi.where(), timeout=300.0) as cli:
             with caminho.open("rb") as fh:
@@ -62,13 +96,11 @@ async def transcrever(caminho: Path) -> str:
                     data={"model_id": "scribe_v2", "language_code": "por"},
                 )
             if r.status_code >= 400:
-                return f"[falha na transcrição: HTTP {r.status_code} {r.text[:150]}]"
+                return False, f"[falha na transcrição: HTTP {r.status_code} {r.text[:150]}]"
             texto = (r.json().get("text") or "").strip()
     except Exception as e:
-        return f"[falha na transcrição: {e}]"
-    texto = texto or "[áudio sem fala detectada]"
-    _cache_transcricao[chave] = texto
-    return texto
+        return False, f"[falha na transcrição: {e}]"
+    return True, texto or "[áudio sem fala detectada]"
 
 
 async def processar_midia(token: str, msg: dict, destino: Path, *,
@@ -93,12 +125,9 @@ async def processar_midia(token: str, msg: dict, destino: Path, *,
         saida["erro"] = r.get("error") or "mídia expirada no WhatsApp"
         return saida
 
-    conteudo = msg.get("content") if isinstance(msg.get("content"), dict) else {}
     ext = (Path(urlparse(url).path).suffix
            or mimetypes.guess_extension(r.get("mimetype", "") or "") or ".bin")
-    nome_original = conteudo.get("fileName") or ""
-    base = _slug(Path(nome_original).stem, 30) if nome_original else _slug(tipo.replace("Message", ""), 20)
-    arquivo = destino / f"{msg.get('messageTimestamp', 0)}-{base}{ext}"
+    arquivo = destino / nome_do_arquivo(msg, ext)
     try:
         if not arquivo.exists():
             await baixar_arquivo(url, arquivo)
