@@ -77,6 +77,11 @@ Mídia antiga expira nos servidores do WhatsApp e não é mais baixável, indepe
 `messageType`, `text`, `quoted`, `content.caption`, `content.fileName`,
 `content.fileSHA256` (hash do arquivo, base para deduplicação).
 
+`messageTimestamp` vem em ms, mas com precisão de segundo (termina em `000`). Mensagens
+encaminhadas juntas chegam com o mesmo valor: num teste de 20/10/2026, sete áudios
+encaminhados em dois lotes trouxeram só três horários distintos. Não use o horário
+sozinho como chave; o nome do arquivo local leva o `messageid`.
+
 **Tipos vistos em produção:** `Conversation`, `ExtendedTextMessage`, `ImageMessage`,
 `VideoMessage`, `AudioMessage`, `DocumentMessage`, `AlbumMessage`, `StickerMessage`,
 `ReactionMessage`, `LocationMessage`, `ContactMessage`, `PtvMessage`.

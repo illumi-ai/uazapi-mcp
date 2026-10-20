@@ -5,6 +5,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versioname
 
 ## [Unreleased]
 
+### Corrigido
+
+- Mídias de mensagens com o mesmo horário não se sobrescrevem mais. Áudios encaminhados
+  juntos chegam com o mesmo `messageTimestamp`, e o arquivo era nomeado só por ele: das
+  cópias, sobrava uma, e as outras mensagens apontavam para ela. O nome agora leva o id
+  da mensagem.
+- Download gravado em arquivo temporário e renomeado no fim, para a transcrição nunca
+  ler um arquivo pela metade (era a causa de `Too much data for declared Content-Length`).
+- O cache de transcrição passa a ser pelo conteúdo do áudio: o mesmo áudio encaminhado
+  duas vezes é transcrito uma vez só, inclusive quando as cópias chegam juntas.
+
 ## [0.1.0] - 2026-09-16
 
 Primeira versão.
